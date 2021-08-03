@@ -1,0 +1,17 @@
+{
+  "name": "time-series",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Jayand Bharati",
+  "license": "ISC",
+  "devDependencies": {
+    "fs": "0.0.1-security",
+    "ws": "^8.0.0"
+  }
+}
