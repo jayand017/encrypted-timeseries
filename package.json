@@ -10,8 +10,10 @@
   },
   "author": "Jayand Bharati",
   "license": "ISC",
-  "devDependencies": {
+  "dependencies": {
+    "dotenv": "^10.0.0",
     "fs": "0.0.1-security",
+    "mongodb": "^4.1.0",
     "ws": "^8.0.0"
   }
 }

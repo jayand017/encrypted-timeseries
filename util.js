@@ -1,5 +1,7 @@
 import fs from 'fs';
 import crypto from 'crypto';
+import dotenv from 'dotenv';
+dotenv.config();
 
 //read file
 var data = fs.readFileSync('data.json', 'utf8');
@@ -10,29 +12,43 @@ function getRandomIndex(limit) {
     return Math.floor(Math.random() * limit)
 }
 
+export function getRandomValue(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 //function generate random message
 function getMessage() {
 
-    const totalNames = data.names.length;
-    const totalCities = data.cities.length;
+    if (data && data.names !== undefined && data.cities !== undefined) {
+        const totalNames = data.names.length;
+        const totalCities = data.cities.length;
 
-    let message = {
-        name: data.names[getRandomIndex(totalNames)],
-        origin: data.cities[getRandomIndex(totalCities)],
-        destination: data.cities[getRandomIndex(totalCities)]
-    };
+        let message = {
+            name: data.names[getRandomIndex(totalNames)],
+            origin: data.cities[getRandomIndex(totalCities)],
+            destination: data.cities[getRandomIndex(totalCities)]
+        };
 
-    return message
+        return message
+    }
+    else {
+        throw new Error('Data has no required fields');
+    }
+
 }
 
 //function to generate hash
 function getHash(message) {
-    return crypto.createHash('sha256').update(message).digest('hex');
+    if (message !== undefined) {
+        return crypto.createHash('sha256').update(message).digest('hex');
+    } else {
+        throw new Error('Message is required');
+    }
+
 }
 
 //fun to add secret key along with message 
 export function getSumCheckMessage() {
-    //generate
     let message = getMessage();
     message["secret_key"] = getHash(JSON.stringify(message));
     return message;
@@ -52,7 +68,7 @@ function getAlogrithm() {
 
 //function to generate secret key
 function getSecretKey() {
-    return crypto.scryptSync('secret', 'salt', 32);
+    return crypto.scryptSync(process.env.SECRET_KEY, 'salt', 32);
 }
 
 //the function adds vector to the encrypted data before sending it out
@@ -62,48 +78,57 @@ function addInitVectorToMsg(initVector, encryptedData) {
 
 //the encryption function
 export function encryptData(message) {
-    const algorithm = getAlogrithm();
-    const key = getSecretKey();
-    const initVector = getInitVector();
+    try {
+        const algorithm = getAlogrithm();
+        const key = getSecretKey();
+        const initVector = getInitVector();
 
-    // the cipher function
-    const cipher = crypto.createCipheriv(algorithm, key, initVector);
+        // the cipher function
+        const cipher = crypto.createCipheriv(algorithm, key, initVector);
 
-    // encrypt the message
-    let encryptedData = cipher.update(message, "utf-8", "hex");
-    encryptedData += cipher.final("hex");
+        // encrypt the message
+        let encryptedData = cipher.update(message, "utf-8", "hex");
+        encryptedData += cipher.final("hex");
 
-    console.log("Encrypted message without iv: " + encryptedData, '\n');
+        console.log("Encrypted message without iv: " + encryptedData, '\n');
 
-    //send init vector along with encrypted data
-    const encryptedDataWithIV = addInitVectorToMsg(initVector, encryptedData);
+        //send init vector along with encrypted data
+        const encryptedDataWithIV = addInitVectorToMsg(initVector, encryptedData);
 
-    console.log("Encrypted message with iv: " + encryptedDataWithIV, '\n');
+        console.log("Encrypted message with iv: " + encryptedDataWithIV, '\n');
 
-    return encryptedDataWithIV;
+        return encryptedDataWithIV;
+    }
+    catch (err) {
+        console.log("Error caught ", err);
+    }
 }
 
 // the decipher function
 export function decryptedData(message) {
+    try {
+        const algorithm = getAlogrithm();
+        const key = getSecretKey();
 
-    const algorithm = getAlogrithm();
-    const key = getSecretKey();
+        message = message.toString();
+        console.log('received encrypted message:', message, '\n');
 
-    message = message.toString();
-    console.log('received encrypted message:', message, '\n');
+        //getting {vi, data} as object
+        const response = separateInitVector(message);
 
-    //getting {vi, data} as object
-    const response = separateInitVector(message);
+        const decipher = crypto.createDecipheriv(algorithm, key, Buffer.from(response.initVector, 'hex'));
 
-    const decipher = crypto.createDecipheriv(algorithm, key, Buffer.from(response.initVector, 'hex'));
+        let decryptedData = decipher.update(response.data, "hex", "utf-8");
 
-    let decryptedData = decipher.update(response.data, "hex", "utf-8");
+        decryptedData += decipher.final("utf8");
 
-    decryptedData += decipher.final("utf8");
+        console.log('after decrypting:', decryptedData, '\n');
 
-    console.log('after decrypting:', decryptedData, '\n');
-
-    return decryptedData;
+        return decryptedData;
+    }
+    catch (err) {
+        console.log("Error caught ", err);
+    }
 }
 
 // function takes incoming message as a input and separates the vector and data from it
@@ -127,7 +152,6 @@ export function validateData(message) {
         let generatehash = getHash(JSON.stringify(data));
 
         console.log('extracted data from encrypted message', data, '\n');
-        console.log('generated hash:', generatehash, '\n');
 
         if (generatehash == message.secret_key) {
             return true;
@@ -135,8 +159,28 @@ export function validateData(message) {
             return false;
         }
     }
-    catch(err) {
+    catch (err) {
         console.log("Error caught ", err);
     }
-    
+
+}
+
+
+//function to add timestamp to message
+export function addTimestamp(message) {
+    message = JSON.parse(message);
+    let data = {
+        name: message.name,
+        origin: message.origin,
+        destination: message.destination
+    }
+    data["timestamp"] = new Date();
+
+    console.log("message with timestamp", data, '\n');
+
+    return data;
+}
+
+export function processBatch(data, batch){
+    return batch.push(data);
 }
